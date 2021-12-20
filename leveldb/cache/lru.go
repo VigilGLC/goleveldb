@@ -19,6 +19,8 @@ type lruNode struct {
 	next, prev *lruNode
 }
 
+// insert first node of 'at' the very prev of n,
+// the next's of 'at' the next of n...
 func (n *lruNode) insert(at *lruNode) {
 	x := at.next
 	at.next = n
@@ -27,6 +29,7 @@ func (n *lruNode) insert(at *lruNode) {
 	x.prev = n
 }
 
+// n unlinked from its lru list.
 func (n *lruNode) remove() {
 	if n.prev != nil {
 		n.prev.next = n.next
@@ -42,7 +45,7 @@ type lru struct {
 	mu       sync.Mutex
 	capacity int
 	used     int
-	recent   lruNode
+	recent   lruNode // dummy node, cyclic double linked...
 }
 
 func (r *lru) reset() {
@@ -63,7 +66,7 @@ func (r *lru) SetCapacity(capacity int) {
 	r.mu.Lock()
 	r.capacity = capacity
 	for r.used > r.capacity {
-		rn := r.recent.prev
+		rn := r.recent.prev // double linked... the prev, the oldest
 		if rn == nil {
 			panic("BUG: invalid LRU used or capacity counter")
 		}
