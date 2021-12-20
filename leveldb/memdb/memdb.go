@@ -190,7 +190,7 @@ type DB struct {
 	// [1]         : Key length
 	// [2]         : Value length
 	// [3]         : Height
-	// [3..height] : Next nodes
+	// [3...=height] : Next nodes
 	nodeData  []int
 	prevNode  [tMaxHeight]int
 	maxHeight int
@@ -198,7 +198,7 @@ type DB struct {
 	kvSize    int
 }
 
-func (p *DB) randHeight() (h int) {
+func (p *DB) randHeight() (h int) { // probability, 0.25...
 	const branching = 4
 	h = 1
 	for h < tMaxHeight && p.rnd.Int()%branching == 0 {
@@ -208,6 +208,7 @@ func (p *DB) randHeight() (h int) {
 }
 
 // Must hold RW-lock if prev == true, as it use shared prevNode slice.
+// prev, whether to remember prev nodes in DB.prevNode
 func (p *DB) findGE(key []byte, prev bool) (int, bool) {
 	node := 0
 	h := p.maxHeight - 1
@@ -235,6 +236,7 @@ func (p *DB) findGE(key []byte, prev bool) (int, bool) {
 	}
 }
 
+// less than...
 func (p *DB) findLT(key []byte) int {
 	node := 0
 	h := p.maxHeight - 1
@@ -305,8 +307,8 @@ func (p *DB) Put(key []byte, value []byte) error {
 	p.nodeData = append(p.nodeData, kvOffset, len(key), len(value), h)
 	for i, n := range p.prevNode[:h] {
 		m := n + nNext + i
-		p.nodeData = append(p.nodeData, p.nodeData[m])
-		p.nodeData[m] = node
+		p.nodeData = append(p.nodeData, p.nodeData[m]) // set next pointers for new inserted node...
+		p.nodeData[m] = node                           // set next pointers for prev nodes to new inserted one...
 	}
 
 	p.kvSize += len(key) + len(value)
@@ -371,6 +373,7 @@ func (p *DB) Get(key []byte) (value []byte, err error) {
 //
 // The caller should not modify the contents of the returned slice, but
 // it is safe to modify the contents of the argument after Find returns.
+// shared the same uintptr, unsafe to modify directly...
 func (p *DB) Find(key []byte) (rkey, value []byte, err error) {
 	p.mu.RLock()
 	if node, _ := p.findGE(key, false); node != 0 {
@@ -387,7 +390,7 @@ func (p *DB) Find(key []byte) (rkey, value []byte, err error) {
 
 // NewIterator returns an iterator of the DB.
 // The returned iterator is not safe for concurrent use, but it is safe to use
-// multiple iterators concurrently, with each in a dedicated goroutine.
+// multiple iterators concurrently, with each in a dedicated goroutine. // iteration is not sequential...
 // It is also safe to use an iterator concurrently with modifying its
 // underlying DB. However, the resultant key/value pairs are not guaranteed
 // to be a consistent snapshot of the DB at a particular point in time.
@@ -397,7 +400,7 @@ func (p *DB) Find(key []byte) (rkey, value []byte, err error) {
 // DB. And a nil Range.Limit is treated as a key after all keys in
 // the DB.
 //
-// WARNING: Any slice returned by interator (e.g. slice returned by calling
+// WARNING: Any slice returned by iterator (e.g. slice returned by calling
 // Iterator.Key() or Iterator.Key() methods), its content should not be modified
 // unless noted otherwise.
 //
