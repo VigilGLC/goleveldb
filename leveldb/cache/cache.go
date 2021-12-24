@@ -96,7 +96,7 @@ func (b *mBucket) get(r *Cache, h *mNode, hash uint32, ns, key uint64, noset boo
 	// Scan the node.
 	for _, n := range b.node {
 		if n.hash == hash && n.ns == ns && n.key == key {
-			atomic.AddInt32(&n.ref, 1)
+			atomic.AddInt32(&n.ref, 1) // here, if no handles, ref === 1...
 			b.mu.Unlock()
 			return true, false, n
 		}
@@ -114,7 +114,7 @@ func (b *mBucket) get(r *Cache, h *mNode, hash uint32, ns, key uint64, noset boo
 		hash: hash,
 		ns:   ns,
 		key:  key,
-		ref:  1,
+		ref:  1, // first get, default 1 increased...
 	}
 	// Add node to bucket.
 	b.node = append(b.node, n)
