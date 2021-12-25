@@ -12,6 +12,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
+// iterator direction
 type dir int
 
 const (
@@ -28,7 +29,7 @@ type mergedIterator struct {
 	strict bool
 
 	keys     [][]byte
-	index    int
+	index    int // which iterator
 	dir      dir
 	err      error
 	errf     func(err error)
@@ -59,6 +60,7 @@ func (i *mergedIterator) Valid() bool {
 	return i.err == nil && i.dir > dirEOI
 }
 
+// First sets each iterator go back to first key.
 func (i *mergedIterator) First() bool {
 	if i.err != nil {
 		return false

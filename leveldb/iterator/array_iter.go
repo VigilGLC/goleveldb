@@ -28,7 +28,7 @@ type Array interface {
 	Index(i int) (key, value []byte)
 }
 
-// Array is the interface that wraps BasicArray and basic Get method.
+// ArrayIndexer is the interface that wraps BasicArray and basic Get method.
 type ArrayIndexer interface {
 	BasicArray
 
