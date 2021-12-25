@@ -18,6 +18,7 @@ const typeShift = 4
 // values by confirming that 0 == 0.
 var _ [0]struct{} = [TypeAll >> typeShift]struct{}{}
 
+// a detached storage lock...
 type memStorageLock struct {
 	ms *memStorage
 }
@@ -109,6 +110,7 @@ func (ms *memStorage) Open(fd FileDesc) (Reader, error) {
 	return nil, os.ErrNotExist
 }
 
+// Create does open fd...
 func (ms *memStorage) Create(fd FileDesc) (Writer, error) {
 	if !FileDescOk(fd) {
 		return nil, ErrInvalidFile

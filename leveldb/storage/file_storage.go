@@ -50,6 +50,7 @@ func (p int64Slice) Len() int           { return len(p) }
 func (p int64Slice) Less(i, j int) bool { return p[i] < p[j] }
 func (p int64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+// open file, write file, sync file, close file
 func writeFileSynced(filename string, data []byte, perm os.FileMode) error {
 	f, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
@@ -78,8 +79,8 @@ type fileStorage struct {
 	mu      sync.Mutex
 	flock   fileLock
 	slock   *fileStorageLock
-	logw    *os.File
-	logSize int64
+	logw    *os.File // log file fd
+	logSize int64    // log file size...
 	buf     []byte
 	// Opened file counter; if open < 0 means closed.
 	open int
@@ -111,7 +112,7 @@ func OpenFile(path string, readOnly bool) (Storage, error) {
 
 	defer func() {
 		if err != nil {
-			flock.release()
+			_ = flock.release()
 		}
 	}()
 
@@ -126,7 +127,7 @@ func OpenFile(path string, readOnly bool) (Storage, error) {
 		}
 		logSize, err = logw.Seek(0, os.SEEK_END)
 		if err != nil {
-			logw.Close()
+			_ = logw.Close()
 			return nil, err
 		}
 	}
@@ -138,7 +139,7 @@ func OpenFile(path string, readOnly bool) (Storage, error) {
 		logw:     logw,
 		logSize:  logSize,
 	}
-	runtime.SetFinalizer(fs, (*fileStorage).Close)
+	runtime.SetFinalizer(fs, (*fileStorage).Close) // 绑定垃圾回收的 finalizer，与 Java 中类似，两次加入队列
 	return fs, nil
 }
 
@@ -158,6 +159,7 @@ func (fs *fileStorage) Lock() (Locker, error) {
 	return fs.slock, nil
 }
 
+// int to string...
 func itoa(buf []byte, i int, wid int) []byte {
 	u := uint(i)
 	if u == 0 && wid <= 1 {
@@ -180,18 +182,18 @@ func (fs *fileStorage) printDay(t time.Time) {
 		return
 	}
 	fs.day = t.Day()
-	fs.logw.Write([]byte("=============== " + t.Format("Jan 2, 2006 (MST)") + " ===============\n"))
+	_, _ = fs.logw.Write([]byte("=============== " + t.Format("Jan 2, 2006 (MST)") + " ===============\n"))
 }
 
 func (fs *fileStorage) doLog(t time.Time, str string) {
 	if fs.logSize > logSizeThreshold {
 		// Rotate log file.
-		fs.logw.Close()
-		fs.logw = nil
+		_ = fs.logw.Close()
+		fs.logw = nil // set nil
 		fs.logSize = 0
-		rename(filepath.Join(fs.path, "LOG"), filepath.Join(fs.path, "LOG.old"))
+		_ = rename(filepath.Join(fs.path, "LOG"), filepath.Join(fs.path, "LOG.old"))
 	}
-	if fs.logw == nil {
+	if fs.logw == nil { // create new log file...
 		var err error
 		fs.logw, err = os.OpenFile(filepath.Join(fs.path, "LOG"), os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
@@ -561,7 +563,7 @@ func (fs *fileStorage) Close() error {
 	if fs.open < 0 {
 		return ErrClosed
 	}
-	// Clear the finalizer.
+	// Clear the finalizer. manually.
 	runtime.SetFinalizer(fs, nil)
 
 	if fs.open > 0 {
